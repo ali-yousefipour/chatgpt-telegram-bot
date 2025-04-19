@@ -3,9 +3,10 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 import requests
 
-TELEGRAM_TOKEN = '7252561996:AAG7XhwfAkfBGbVQ5OAWtZ6vkWPFOoxyVfU'
-OPENAI_API_KEY = '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'
+import os
 
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 async def chatgpt_response(prompt):
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
