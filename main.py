@@ -44,3 +44,5 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
+    except Exception as e:
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"خطا: {e}")
