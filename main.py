@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from flask import Flask, request
 import threading
 import asyncio
-
+from werkzeug.utils import url_quote
 # بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv()
 
