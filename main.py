@@ -65,15 +65,16 @@ async def telegram_main():
     await application.run_polling()
 
 # تابع راه‌اندازی Flask و ربات تلگرام به صورت همزمان
-def main():
-    # ایجاد حلقه رویداد
+async def main():
+    # اجرای ربات تلگرام به صورت async
     loop = asyncio.get_event_loop()
 
-    # اجرای ربات تلگرام به صورت async
+    # اجرای ربات تلگرام به صورت همزمان
     loop.create_task(telegram_main())
 
     # راه‌اندازی سرور Flask
     socketio.run(app, host='0.0.0.0', port=5000)
 
 if __name__ == "__main__":
-    main()
+    # استفاده از asyncio.run برای اجرای حلقه رویداد
+    asyncio.run(main())
