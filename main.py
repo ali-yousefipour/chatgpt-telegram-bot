@@ -1,58 +1,46 @@
 import os
 import logging
-import openai
-from dotenv import load_dotenv
+import requests
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from flask import Flask, request
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-# بارگذاری متغیرهای محیطی از فایل .env
-load_dotenv()
+# گرفتن توکن‌ها از متغیر محیطی
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-# تنظیم توکن ربات تلگرام و کلید API OpenAI
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# تنظیم لاگ‌گیری برای دیباگ
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# تنظیمات OpenAI
-openai.api_key = OPENAI_API_KEY
+# تابع دریافت پاسخ از ChatGPT
+def chatgpt_response(message_text):
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "gpt-3.5-turbo",
+        "messages": [{"role": "user", "content": message_text}]
+    }
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
 
-# ساخت اپلیکیشن Flask برای اتصال به پورت
-app = Flask(__name__)
+    print("RAW RESPONSE:", response.text)  # برای دیباگ
 
-# تنظیمات Telegram
-application = Application.builder().token(BOT_TOKEN).build()
+    if response.status_code == 200:
+        return response.json()['choices'][0]['message']['content']
+    else:
+        return "متاسفم، مشکلی پیش اومد."
 
-# تعریف دستور /start برای ربات تلگرام
-async def start(update: Update, context):
-    await update.message.reply_text("سلام! من آماده هستم تا به سوالات شما پاسخ بدهم.")
-
-# تعریف دستوری برای دریافت پیام و ارسال پاسخ از OpenAI
-async def handle_message(update: Update, context):
+# هندلر پیام‌ها
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-    try:
-        # ارسال پیام به OpenAI برای دریافت پاسخ
-        response = openai.Completion.create(
-            model="text-davinci-003",  # مدل OpenAI
-            prompt=user_message,
-            max_tokens=150
-        )
-        answer = response.choices[0].text.strip()
-        await update.message.reply_text(answer)
-    except Exception as e:
-        await update.message.reply_text("متاسفانه مشکلی پیش آمد.")
+    reply = chatgpt_response(user_message)
+    await update.message.reply_text(reply)
 
-# اضافه کردن هندلرها به ربات
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+# اجرای بات
+if __name__ == '__main__':
+    if not BOT_TOKEN or not OPENAI_API_KEY:
+        raise RuntimeError("توکن‌ها به درستی تنظیم نشده‌اند.")
 
-# راه‌اندازی سرور Flask برای پورت و دریافت درخواست‌ها
-@app.route("/")
-def index():
-    return "ربات تلگرام در حال اجراست!"
-
-# تابع اصلی برای شروع ربات تلگرام
-if __name__ == "__main__":
-    # شروع وب سرویس Flask و ربات تلگرام
-    import threading
-    threading.Thread(target=lambda: application.run_polling()).start()
-    app.run(host="0.0.0.0", port=8000)
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
