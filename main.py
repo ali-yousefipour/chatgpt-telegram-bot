@@ -4,6 +4,7 @@ import openai
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from dotenv import load_dotenv
+import asyncio
 
 # بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv()
@@ -59,7 +60,6 @@ async def telegram_main():
     # شروع پردازش پیام‌ها
     await application.run_polling()
 
-# راه‌اندازی ربات تلگرام
+# اجرای برنامه
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(telegram_main())
+    asyncio.get_event_loop().run_until_complete(telegram_main())
