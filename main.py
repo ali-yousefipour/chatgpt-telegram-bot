@@ -1,43 +1,46 @@
 import os
+import logging
+import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
-import requests
 
-import os
-
+# گرفتن توکن‌ها از متغیر محیطی
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-async def chatgpt_response(prompt):
-    url = "https://api.openai.com/v1/chat/completions"
+
+# تنظیم لاگ‌گیری برای دیباگ
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# تابع دریافت پاسخ از ChatGPT
+def chatgpt_response(message_text):
     headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
     }
     data = {
         "model": "gpt-3.5-turbo",
-        "messages": [{"role": "user", "content": prompt}]
+        "messages": [{"role": "user", "content": message_text}]
     }
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
 
-    response = requests.post(url, headers=headers, json=data)
-    result = response.json()
+    print("RAW RESPONSE:", response.text)  # برای دیباگ
 
-    try:
-        return result['choices'][0]['message']['content'].strip()
-    except:
+    if response.status_code == 200:
+        return response.json()['choices'][0]['message']['content']
+    else:
         return "متاسفم، مشکلی پیش اومد."
 
+# هندلر پیام‌ها
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-    reply = await chatgpt_response(user_message)
+    reply = chatgpt_response(user_message)
     await update.message.reply_text(reply)
 
+# اجرای بات
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    if not BOT_TOKEN or not OPENAI_API_KEY:
+        raise RuntimeError("توکن‌ها به درستی تنظیم نشده‌اند.")
 
-    PORT = int(os.environ.get('PORT', 8443))
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
-    )
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
