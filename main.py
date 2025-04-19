@@ -7,6 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 from dotenv import load_dotenv
 import asyncio
+from gevent import monkey; monkey.patch_all()  # Patches stdlib for gevent compatibility
 
 # بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv()
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # تنظیمات Flask
 app = Flask(__name__)
-socketio = SocketIO(app, async_mode='eventlet')
+socketio = SocketIO(app, async_mode='gevent')  # استفاده از gevent به جای eventlet
 
 # تابع برای ارسال پیام به OpenAI و دریافت جواب
 async def get_openai_response(message: str):
@@ -65,16 +66,15 @@ async def telegram_main():
     await application.run_polling()
 
 # تابع راه‌اندازی Flask و ربات تلگرام به صورت همزمان
-async def main():
-    # اجرای ربات تلگرام به صورت async
+def main():
+    # ایجاد حلقه رویداد
     loop = asyncio.get_event_loop()
 
-    # اجرای ربات تلگرام به صورت همزمان
+    # اجرای ربات تلگرام به صورت async
     loop.create_task(telegram_main())
 
     # راه‌اندازی سرور Flask
     socketio.run(app, host='0.0.0.0', port=5000)
 
 if __name__ == "__main__":
-    # استفاده از asyncio.run برای اجرای حلقه رویداد
-    asyncio.run(main())
+    main()
