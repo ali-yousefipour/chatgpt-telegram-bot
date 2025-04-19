@@ -1,58 +1,86 @@
-import os
-import logging
 import openai
-from dotenv import load_dotenv
+import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import os
+from dotenv import load_dotenv
 from flask import Flask, request
+import threading
+import asyncio
 
 # بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv()
 
-# تنظیم توکن ربات تلگرام و کلید API OpenAI
+# تنظیمات مربوط به توکن تلگرام و کلید OpenAI
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# تنظیمات OpenAI
-openai.api_key = OPENAI_API_KEY
+# تنظیمات لاگ‌گذاری
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# ساخت اپلیکیشن Flask برای اتصال به پورت
-app = Flask(__name__)
-
-# تنظیمات Telegram
-application = Application.builder().token(BOT_TOKEN).build()
-
-# تعریف دستور /start برای ربات تلگرام
-async def start(update: Update, context):
-    await update.message.reply_text("سلام! من آماده هستم تا به سوالات شما پاسخ بدهم.")
-
-# تعریف دستوری برای دریافت پیام و ارسال پاسخ از OpenAI
-async def handle_message(update: Update, context):
-    user_message = update.message.text
+# تابع برای ارسال پیام به OpenAI و دریافت جواب
+async def get_openai_response(message: str):
+    openai.api_key = OPENAI_API_KEY
     try:
-        # ارسال پیام به OpenAI برای دریافت پاسخ
         response = openai.Completion.create(
-            model="text-davinci-003",  # مدل OpenAI
-            prompt=user_message,
+            model="text-davinci-003",
+            prompt=message,
             max_tokens=150
         )
-        answer = response.choices[0].text.strip()
-        await update.message.reply_text(answer)
+        return response.choices[0].text.strip()
     except Exception as e:
-        await update.message.reply_text("متاسفانه مشکلی پیش آمد.")
+        logger.error(f"Error with OpenAI API: {e}")
+        return "An error occurred while fetching the response."
 
-# اضافه کردن هندلرها به ربات
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+# تابع برای پردازش پیام‌ها در تلگرام
+async def handle_message(update: Update, context):
+    user_message = update.message.text
+    logger.info(f"Received message: {user_message}")
+    
+    # دریافت پاسخ از OpenAI
+    response = await get_openai_response(user_message)
+    
+    # ارسال پاسخ به کاربر
+    await update.message.reply_text(response)
 
-# راه‌اندازی سرور Flask برای پورت و دریافت درخواست‌ها
-@app.route("/")
-def index():
-    return "ربات تلگرام در حال اجراست!"
+# دستور شروع ربات
+async def start(update: Update, context):
+    await update.message.reply_text("Hello! I'm your friendly ChatGPT bot. How can I assist you today?")
 
-# تابع اصلی برای شروع ربات تلگرام
+# تابع اصلی برای راه‌اندازی ربات تلگرام
+async def telegram_main():
+    # ساخت اپلیکیشن تلگرام
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # ثبت دستورات
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # شروع پردازش پیام‌ها
+    await application.run_polling()
+
+# راه‌اندازی سرور Flask
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Flask server is running!"
+
+# اجرای Flask در یک thread جداگانه
+def run_flask():
+    app.run(host='0.0.0.0', port=5000)
+
+# تابع اصلی برای اجرای Flask و ربات تلگرام هم‌زمان
+async def main():
+    # راه‌اندازی Flask در یک thread جداگانه
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # راه‌اندازی ربات تلگرام
+    await telegram_main()
+
+# اجرای اپلیکیشن با استفاده از asyncio
 if __name__ == "__main__":
-    # شروع وب سرویس Flask و ربات تلگرام
-    import threading
-    threading.Thread(target=lambda: application.run_polling()).start()
-    app.run(host="0.0.0.0", port=8000)
+    asyncio.run(main())
