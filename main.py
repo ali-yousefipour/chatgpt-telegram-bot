@@ -1,6 +1,6 @@
-import os
-import logging
 import openai
+import logging
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from dotenv import load_dotenv
@@ -9,22 +9,22 @@ import asyncio
 # بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv()
 
+# تنظیمات مربوط به توکن تلگرام و کلید OpenAI
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 # تنظیمات لاگ‌گذاری
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# بارگذاری توکن تلگرام و API Key از فایل .env
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# تنظیمات OpenAI API
+# تنظیمات OpenAI
 openai.api_key = OPENAI_API_KEY
 
 # تابع برای ارسال پیام به OpenAI و دریافت جواب
-async def get_openai_response(message: str) -> str:
+async def get_openai_response(message: str):
     try:
         response = openai.Completion.create(
-            model="text-davinci-003",  # مدل GPT-3
+            model="text-davinci-003",
             prompt=message,
             max_tokens=150
         )
@@ -32,10 +32,6 @@ async def get_openai_response(message: str) -> str:
     except Exception as e:
         logger.error(f"Error with OpenAI API: {e}")
         return "An error occurred while fetching the response."
-
-# تابع شروع ربات
-async def start(update: Update, context):
-    await update.message.reply_text("سلام! من ربات ChatGPT هستم. چطور می‌توانم به شما کمک کنم؟")
 
 # تابع برای پردازش پیام‌ها در تلگرام
 async def handle_message(update: Update, context):
@@ -48,9 +44,12 @@ async def handle_message(update: Update, context):
     # ارسال پاسخ به کاربر
     await update.message.reply_text(response)
 
+# دستور شروع ربات
+async def start(update: Update, context):
+    await update.message.reply_text("سلام! من ربات چت‌جی‌پی‌تی هستم. چطور می‌توانم کمک کنم؟")
+
 # تابع اصلی برای راه‌اندازی ربات تلگرام
 async def telegram_main():
-    # ساخت اپلیکیشن تلگرام
     application = Application.builder().token(BOT_TOKEN).build()
 
     # ثبت دستورات
@@ -60,6 +59,10 @@ async def telegram_main():
     # شروع پردازش پیام‌ها
     await application.run_polling()
 
-# اجرای برنامه
+# راه‌اندازی ربات تلگرام
+def main():
+    # اجرای ربات تلگرام به صورت async
+    asyncio.run(telegram_main())
+
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(telegram_main())
+    main()
