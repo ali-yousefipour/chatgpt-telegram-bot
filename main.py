@@ -77,5 +77,6 @@ if __name__ == "__main__":
     flask_thread.start()
 
     # اجرای Telegram Bot با استفاده از asyncio
-    asyncio.create_task(telegram_main())
-    asyncio.get_event_loop().run_forever()
+    loop = asyncio.get_event_loop()
+    loop.create_task(telegram_main())
+    loop.run_forever()
