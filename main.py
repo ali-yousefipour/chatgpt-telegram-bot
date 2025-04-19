@@ -4,10 +4,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 from dotenv import load_dotenv
-from flask import Flask, request
-import threading
-import asyncio
-from werkzeug.utils import url_quote
+
 # بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv()
 
@@ -48,7 +45,7 @@ async def handle_message(update: Update, context):
 async def start(update: Update, context):
     await update.message.reply_text("Hello! I'm your friendly ChatGPT bot. How can I assist you today?")
 
-# تابع اصلی برای راه‌اندازی ربات تلگرام
+# تابع اصلی برای راه‌اندازی ربات
 async def telegram_main():
     # ساخت اپلیکیشن تلگرام
     application = Application.builder().token(BOT_TOKEN).build()
@@ -60,27 +57,9 @@ async def telegram_main():
     # شروع پردازش پیام‌ها
     await application.run_polling()
 
-# راه‌اندازی سرور Flask
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Flask server is running!"
-
-# اجرای Flask در یک thread جداگانه
-def run_flask():
-    app.run(host='0.0.0.0', port=5000)
-
-# تابع اصلی برای اجرای Flask و ربات تلگرام هم‌زمان
-async def main():
-    # راه‌اندازی Flask در یک thread جداگانه
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.daemon = True
-    flask_thread.start()
-
-    # راه‌اندازی ربات تلگرام
-    await telegram_main()
-
-# اجرای اپلیکیشن با استفاده از asyncio
 if __name__ == "__main__":
-    asyncio.run(main())
+    # راه‌اندازی ربات تلگرام
+    import asyncio
+    asyncio.create_task(telegram_main())
+    # اجرای حلقه‌ی رویداد
+    asyncio.get_event_loop().run_forever()
