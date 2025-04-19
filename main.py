@@ -1,51 +1,58 @@
 import os
+import logging
 import openai
-from telegram import Update
-from telegram.ext import Application, MessageHandler, ContextTypes, CommandHandler, filters
 from dotenv import load_dotenv
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from flask import Flask, request
 
-# بارگذاری متغیرهای محیطی از .env (در صورت نیاز)
+# بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv()
 
-# گرفتن توکن‌ها از متغیر محیطی
-TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
+# تنظیم توکن ربات تلگرام و کلید API OpenAI
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# تنظیم کلید API
+# تنظیمات OpenAI
 openai.api_key = OPENAI_API_KEY
 
-# پاسخ اولیه هنگام شروع
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("سلام! من ربات ChatGPT هستم. هر سوالی داشتی بپرس.")
+# ساخت اپلیکیشن Flask برای اتصال به پورت
+app = Flask(__name__)
 
-# هندل پیام‌های متنی
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# تنظیمات Telegram
+application = Application.builder().token(BOT_TOKEN).build()
+
+# تعریف دستور /start برای ربات تلگرام
+async def start(update: Update, context):
+    await update.message.reply_text("سلام! من آماده هستم تا به سوالات شما پاسخ بدهم.")
+
+# تعریف دستوری برای دریافت پیام و ارسال پاسخ از OpenAI
+async def handle_message(update: Update, context):
+    user_message = update.message.text
     try:
-        user_message = update.message.text
-
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": user_message}
-            ]
+        # ارسال پیام به OpenAI برای دریافت پاسخ
+        response = openai.Completion.create(
+            model="text-davinci-003",  # مدل OpenAI
+            prompt=user_message,
+            max_tokens=150
         )
-
-        reply = response.choices[0].message.content
-        await update.message.reply_text(reply)
-
+        answer = response.choices[0].text.strip()
+        await update.message.reply_text(answer)
     except Exception as e:
-        await update.message.reply_text("متاسفم، مشکلی پیش اومد.")
-        print(f"خطا: {e}")
+        await update.message.reply_text("متاسفانه مشکلی پیش آمد.")
 
-# اجرای اصلی ربات
-def main():
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+# اضافه کردن هندلرها به ربات
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+# راه‌اندازی سرور Flask برای پورت و دریافت درخواست‌ها
+@app.route("/")
+def index():
+    return "ربات تلگرام در حال اجراست!"
 
-    print("ربات در حال اجراست...")
-    app.run_polling()
-
+# تابع اصلی برای شروع ربات تلگرام
 if __name__ == "__main__":
-    main()
+    # شروع وب سرویس Flask و ربات تلگرام
+    import threading
+    threading.Thread(target=lambda: application.run_polling()).start()
+    app.run(host="0.0.0.0", port=8000)
