@@ -1,46 +1,65 @@
 import os
 import logging
-import requests
+import openai
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from dotenv import load_dotenv
 
-# گرفتن توکن‌ها از متغیر محیطی
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+# بارگذاری متغیرهای محیطی از فایل .env
+load_dotenv()
 
-# تنظیم لاگ‌گیری برای دیباگ
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# تنظیمات لاگ‌گذاری
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# تابع دریافت پاسخ از ChatGPT
-def chatgpt_response(message_text):
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "gpt-3.5-turbo",
-        "messages": [{"role": "user", "content": message_text}]
-    }
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+# بارگذاری توکن تلگرام و API Key از فایل .env
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-    print("RAW RESPONSE:", response.text)  # برای دیباگ
+# تنظیمات OpenAI API
+openai.api_key = OPENAI_API_KEY
 
-    if response.status_code == 200:
-        return response.json()['choices'][0]['message']['content']
-    else:
-        return "متاسفم، مشکلی پیش اومد."
+# تابع برای ارسال پیام به OpenAI و دریافت جواب
+async def get_openai_response(message: str) -> str:
+    try:
+        response = openai.Completion.create(
+            model="text-davinci-003",  # مدل GPT-3
+            prompt=message,
+            max_tokens=150
+        )
+        return response.choices[0].text.strip()
+    except Exception as e:
+        logger.error(f"Error with OpenAI API: {e}")
+        return "An error occurred while fetching the response."
 
-# هندلر پیام‌ها
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# تابع شروع ربات
+async def start(update: Update, context):
+    await update.message.reply_text("سلام! من ربات ChatGPT هستم. چطور می‌توانم به شما کمک کنم؟")
+
+# تابع برای پردازش پیام‌ها در تلگرام
+async def handle_message(update: Update, context):
     user_message = update.message.text
-    reply = chatgpt_response(user_message)
-    await update.message.reply_text(reply)
+    logger.info(f"Received message: {user_message}")
+    
+    # دریافت پاسخ از OpenAI
+    response = await get_openai_response(user_message)
+    
+    # ارسال پاسخ به کاربر
+    await update.message.reply_text(response)
 
-# اجرای بات
-if __name__ == '__main__':
-    if not BOT_TOKEN or not OPENAI_API_KEY:
-        raise RuntimeError("توکن‌ها به درستی تنظیم نشده‌اند.")
+# تابع اصلی برای راه‌اندازی ربات تلگرام
+async def telegram_main():
+    # ساخت اپلیکیشن تلگرام
+    application = Application.builder().token(BOT_TOKEN).build()
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.run_polling()
+    # ثبت دستورات
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # شروع پردازش پیام‌ها
+    await application.run_polling()
+
+# راه‌اندازی ربات تلگرام
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(telegram_main())
